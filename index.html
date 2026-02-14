@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TCC Lanyards | PDF Fill & Download</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background">
+      <div class="grain"></div>
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="assets/tcc-logo.png" alt="Trinity Cambridge Church" />
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Lanyard Builder</div>
+          <div class="brand-subtitle">Trinity Cambridge</div>
+        </div>
+      </div>
+      <div class="status" id="status">Loading template…</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls">
+        <h1>Fill the lanyard details</h1>
+        <p class="lede">
+          Enter your details directly on the PDF. When you are ready, download a flattened
+          copy for print-ready output.
+        </p>
+        <div class="print-callout">
+          Important: print this as a double-sided <span>short edge</span> document.
+        </div>
+
+        <div class="actions">
+          <button id="download-flattened" class="primary">Download PDF</button>
+          <button id="reset-fields" class="ghost">Reset all fields</button>
+        </div>
+
+        <div class="callout">
+          <h2>Download details</h2>
+          <p>
+            The download renders each page as a high-resolution image so the text is baked in.
+            This ensures Gotham is preserved exactly as designed.
+          </p>
+        </div>
+
+        <div class="error" id="error" hidden></div>
+      </section>
+
+      <section class="panel viewer">
+        <div id="pdf-root" class="pdf-root"></div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>
