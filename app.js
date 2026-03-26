@@ -13,6 +13,9 @@
   const TEMPLATE_URL = "assets/TCC-Lanyards-Fillable-Template.pdf";
   const getFieldStyle = (fieldName = "") => {
     const name = String(fieldName).toLowerCase();
+    if (name.includes("ministry")) {
+      return { weight: "light", fontSize: 11, color: "#a8ccd5", letterSpacing: 4 };
+    }
     if (name.includes("first")) {
       return { weight: "black", fontSize: 30, color: "#ffffff" };
     }
@@ -39,6 +42,8 @@
     annotationIds: [],
     annotationsByPage: Object.create(null),
     mirrorMap: Object.create(null),
+    ministryValues: Object.create(null),
+    ministryPositions: [],
     scale: 1,
     renderToken: 0,
   };
@@ -90,6 +95,7 @@
       });
       state.annotationStorage.resetModified();
     }
+    state.ministryValues = Object.create(null);
     document.querySelectorAll(".annotation-layer input, .annotation-layer textarea").forEach((input) => {
       if (input.type === "checkbox") {
         input.checked = false;
@@ -223,6 +229,63 @@
 
     annotationLayer.appendChild(backdrop);
     annotationLayer.appendChild(input);
+  };
+
+  const createMinistryFields = (viewport, pageWrapper) => {
+    const firstNameFields = (state.annotationsByPage[1] || []).filter((f) =>
+      String(f.fieldName || "").toLowerCase().includes("first")
+    );
+    if (!firstNameFields.length) return;
+
+    const annotationLayer = pageWrapper.querySelector(".annotation-layer");
+    state.ministryPositions = [];
+
+    firstNameFields.forEach((field, index) => {
+      const fieldHeight = Math.abs(field.rect[3] - field.rect[1]);
+      const fieldWidth = Math.abs(field.rect[2] - field.rect[0]);
+      const ministryHeight = fieldHeight * 0.45;
+      const yOffset = fieldHeight * 1.8;
+
+      const pdfRect = [
+        field.rect[0],
+        field.rect[1] + yOffset,
+        field.rect[2],
+        field.rect[1] + yOffset + ministryHeight,
+      ];
+
+      state.ministryPositions.push({ index, pdfRect, fieldWidth });
+
+      const rect = viewport.convertToViewportRectangle(pdfRect);
+      const left = Math.min(rect[0], rect[2]);
+      const top = Math.min(rect[1], rect[3]);
+      const width = Math.abs(rect[0] - rect[2]);
+      const height = Math.abs(rect[1] - rect[3]);
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "field-highlight ministry-input";
+      input.dataset.ministryIndex = String(index);
+      input.placeholder = "MINISTRY";
+      input.value = state.ministryValues[index] || "";
+      input.style.left = `${left}px`;
+      input.style.top = `${top}px`;
+      input.style.width = `${width}px`;
+      input.style.height = `${height}px`;
+
+      input.addEventListener("input", () => {
+        state.ministryValues[index] = input.value;
+      });
+
+      const backdrop = document.createElement("div");
+      backdrop.className = "field-backdrop ministry-backdrop";
+      backdrop.style.left = `${left}px`;
+      backdrop.style.top = `${top}px`;
+      backdrop.style.width = `${width}px`;
+      backdrop.style.height = `${height}px`;
+
+      annotationLayer.appendChild(backdrop);
+      annotationLayer.appendChild(input);
+    });
   };
 
   const renderPage = async (pageNumber, token) => {
@@ -368,6 +431,12 @@
     await renderPage(1, token);
     await collectAnnotations(1);
 
+    const pageWrapper = elements.root.querySelector(".page");
+    if (pageWrapper) {
+      const viewport = firstPage.getViewport({ scale: state.scale });
+      createMinistryFields(viewport, pageWrapper);
+    }
+
     if (state.pdfDoc.numPages >= 2) {
       await collectAnnotations(2);
     }
@@ -467,6 +536,72 @@
         });
       };
 
+      const drawMinistryFields = (ctx, viewport, pageNumber) => {
+        if (!state.ministryPositions.length) return;
+
+        const firstNameFields = (state.annotationsByPage[1] || []).filter((f) =>
+          String(f.fieldName || "").toLowerCase().includes("first")
+        );
+        const cols = new Set();
+        firstNameFields.forEach((f) => cols.add(Math.round((f.rect[0] + f.rect[2]) / 2)));
+        const sortedCols = [...cols].sort((a, b) => a - b);
+        const numCols = sortedCols.length || 1;
+
+        state.ministryPositions.forEach((pos) => {
+          const value = state.ministryValues[pos.index];
+          if (!value || !value.trim()) return;
+
+          let pdfRect = pos.pdfRect;
+          if (pageNumber === 2 && numCols > 1) {
+            const field = firstNameFields[pos.index];
+            if (!field) return;
+            const fieldCenterX = (field.rect[0] + field.rect[2]) / 2;
+            const colIdx = sortedCols.indexOf(
+              sortedCols.reduce((prev, curr) =>
+                Math.abs(curr - fieldCenterX) < Math.abs(prev - fieldCenterX) ? curr : prev
+              )
+            );
+            const mirrorColIdx = numCols - 1 - colIdx;
+            const mirrorCenterX = sortedCols[mirrorColIdx];
+            const halfWidth = (pdfRect[2] - pdfRect[0]) / 2;
+            pdfRect = [
+              mirrorCenterX - halfWidth,
+              pdfRect[1],
+              mirrorCenterX + halfWidth,
+              pdfRect[3],
+            ];
+          }
+
+          const rect = viewport.convertToViewportRectangle(pdfRect);
+          const left = Math.min(rect[0], rect[2]);
+          const top = Math.min(rect[1], rect[3]);
+          const width = Math.abs(rect[0] - rect[2]);
+          const height = Math.abs(rect[1] - rect[3]);
+          const style = getFieldStyle("ministry");
+
+          let fontSize = (style.fontSize || 11) * viewport.scale;
+          const text = value.trim().toUpperCase();
+
+          ctx.save();
+          ctx.font = `300 ${fontSize}px Gotham, Helvetica Neue, sans-serif`;
+          if (typeof ctx.letterSpacing !== "undefined") {
+            ctx.letterSpacing = `${(style.letterSpacing || 4) * viewport.scale}px`;
+          }
+
+          const measured = ctx.measureText(text);
+          if (measured.width > width * 0.9) {
+            fontSize *= (width * 0.9) / measured.width;
+            ctx.font = `300 ${fontSize}px Gotham, Helvetica Neue, sans-serif`;
+          }
+
+          ctx.fillStyle = style.color || "#a8ccd5";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, left + width / 2, top + height / 2, width * 0.95);
+          ctx.restore();
+        });
+      };
+
       for (let pageNumber = 1; pageNumber <= srcDoc.numPages; pageNumber += 1) {
         const page = await srcDoc.getPage(pageNumber);
         const viewport = page.getViewport({ scale: rasterScale });
@@ -483,6 +618,7 @@
         }).promise;
 
         drawFieldsForPage(ctx, viewport, pageNumber);
+        drawMinistryFields(ctx, viewport, pageNumber);
 
         const pngBytes = toUint8Array(canvas.toDataURL("image/png"));
         const pngImage = await outDoc.embedPng(pngBytes);
