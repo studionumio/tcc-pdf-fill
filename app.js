@@ -539,36 +539,36 @@
       const drawMinistryFields = (ctx, viewport, pageNumber) => {
         if (!state.ministryPositions.length) return;
 
-        const firstNameFields = (state.annotationsByPage[1] || []).filter((f) =>
+        const frontFirstFields = (state.annotationsByPage[1] || []).filter((f) =>
           String(f.fieldName || "").toLowerCase().includes("first")
         );
-        const cols = new Set();
-        firstNameFields.forEach((f) => cols.add(Math.round((f.rect[0] + f.rect[2]) / 2)));
-        const sortedCols = [...cols].sort((a, b) => a - b);
-        const numCols = sortedCols.length || 1;
+        const backFirstFields = (state.annotationsByPage[2] || []).filter((f) =>
+          String(f.fieldName || "").toLowerCase().includes("first")
+        );
+        const backFieldsByName = Object.create(null);
+        backFirstFields.forEach((f) => { backFieldsByName[f.fieldName] = f; });
 
         state.ministryPositions.forEach((pos) => {
           const value = state.ministryValues[pos.index];
           if (!value || !value.trim()) return;
 
           let pdfRect = pos.pdfRect;
-          if (pageNumber === 2 && numCols > 1) {
-            const field = firstNameFields[pos.index];
-            if (!field) return;
-            const fieldCenterX = (field.rect[0] + field.rect[2]) / 2;
-            const colIdx = sortedCols.indexOf(
-              sortedCols.reduce((prev, curr) =>
-                Math.abs(curr - fieldCenterX) < Math.abs(prev - fieldCenterX) ? curr : prev
-              )
-            );
-            const mirrorColIdx = numCols - 1 - colIdx;
-            const mirrorCenterX = sortedCols[mirrorColIdx];
-            const halfWidth = (pdfRect[2] - pdfRect[0]) / 2;
+
+          if (pageNumber === 2) {
+            const frontField = frontFirstFields[pos.index];
+            if (!frontField) return;
+            const backFieldName = state.mirrorMap[frontField.fieldName];
+            const backField = backFieldName && backFieldsByName[backFieldName];
+            if (!backField) return;
+
+            const backHeight = Math.abs(backField.rect[3] - backField.rect[1]);
+            const ministryHeight = backHeight * 0.45;
+            const yOffset = backHeight * 1.8;
             pdfRect = [
-              mirrorCenterX - halfWidth,
-              pdfRect[1],
-              mirrorCenterX + halfWidth,
-              pdfRect[3],
+              backField.rect[0],
+              backField.rect[1] + yOffset,
+              backField.rect[2],
+              backField.rect[1] + yOffset + ministryHeight,
             ];
           }
 
